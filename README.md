@@ -43,3 +43,5 @@ cd event-car-chatbot
 - Replace the `firebaseConfig` placeholder with your actual Firebase project credentials.
 - Create a Firestore collection named `cars` with fields: `model`, `year`, `price`.
 - Inquiries will be saved in the `inquiries` collection.
+
+![image](https://github.com/user-attachments/assets/f48472a1-2725-41bb-a3ae-8f7693286be1)
