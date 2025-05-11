@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CarBot with Firebase</title>
+  <script type="module">
+    // Step 1: Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+    // Step 2: Firebase Config (replace with your own config)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Step 3: Initialize Firebase and Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Step 4: Define state & logic
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("userInput");
+
+    let state = 0;
+    let cars = [];
+    let selectedCar = null;
+
+    function addMessage(text, sender) {
+      const msg = document.createElement("div");
+      msg.className = `message ${sender}`;
+      msg.innerText = text;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function loadCars() {
+      const querySnapshot = await getDocs(collection(db, "cars"));
+      cars = querySnapshot.docs.map(doc => doc.data());
+    }
+
+    async function handleUserInput() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage(text, "user");
+
+      if (state === 0) {
+        await loadCars();
+        if (cars.length === 0) {
+          addMessage("❌ No cars available at the moment.", "bot");
+          return;
+        }
+        const list = cars.map((car, i) => `${i + 1}. ${car.model} (${car.year}) - ${car.price}`).join("\n");
+        addMessage("Welcome to CarBot! 🚗\nAvailable cars:\n" + list + "\n\nEnter the number of the car you're interested in.", "bot");
+        state = 1;
+      } else if (state === 1) {
+        const choice = parseInt(text) - 1;
+        if (cars[choice]) {
+          selectedCar = cars[choice];
+          addMessage(`Great choice!\n${selectedCar.model} (${selectedCar.year}) - ${selectedCar.price}`, "bot");
+          addMessage("Would you like to:\n1. Book a test drive\n2. Get contacted\n(Enter 1 or 2)", "bot");
+          state = 2;
+        } else {
+          addMessage("❌ Invalid selection. Try again.", "bot");
+        }
+      } else if (state === 2) {
+        if (text === "1" || text === "2") {
+          selectedCar.inquiryType = text === "1" ? "Test Drive" : "Contact";
+          addMessage("Great! What's your name?", "bot");
+          state = 3;
+        } else {
+          addMessage("Please enter 1 or 2.", "bot");
+        }
+      } else if (state === 3) {
+        selectedCar.userName = text;
+        addMessage("Thanks, " + text + "! Now your email or phone number?", "bot");
+        state = 4;
+      } else if (state === 4) {
+        selectedCar.contact = text;
+
+        // Save to Firestore
+        await addDoc(collection(db, "inquiries"), {
+          userName: selectedCar.userName,
+          contact: selectedCar.contact,
+          carModel: selectedCar.model,
+          inquiryType: selectedCar.inquiryType,
+          createdAt: serverTimestamp()
+        });
+
+        addMessage(`✅ Inquiry saved! We'll contact you soon, ${selectedCar.userName}.`, "bot");
+        addMessage("Thanks for using CarBot! 👋", "bot");
+        state = 0;
+      }
+
+      input.value = "";
+    }
+
+    window.handleUserInput = handleUserInput;
+  </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .chat-container {
+      width: 100%;
+      max-width: 400px;
+      height: 600px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .chat-header {
+      background: #3b82f6;
+      color: white;
+      padding: 15px;
+      font-weight: bold;
+    }
+    .chat-body {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+    }
+    .chat-input {
+      display: flex;
+      border-top: 1px solid #ddd;
+    }
+    .chat-input input {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      outline: none;
+      font-size: 16px;
+    }
+    .chat-input button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+    .message {
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 10px;
+      max-width: 80%;
+    }
+    .message.bot {
+      background: #e5e7eb;
+      align-self: flex-start;
+    }
+    .message.user {
+      background: #3b82f6;
+      color: white;
+      align-self: flex-end;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">🚗 CarBot</div>
+    <div class="chat-body" id="chat"></div>
+    <div class="chat-input">
+      <input id="userInput" placeholder="Type here..." />
+      <button onclick="handleUserInput()">Send</button>
+    </div>
+  </div>
+</body>
+</html>
